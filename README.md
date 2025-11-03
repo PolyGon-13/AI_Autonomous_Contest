@@ -1,7 +1,7 @@
 ### 🏆 대회 내용
-- **대회명:** 제20회 국제로봇콘테스트 (International Robot Contest 2025)  
-- **부문:** AI 자율주행 경진대회 (AI Autonomous Driving Competition)  
-- **성과:** 2등 (국가표준원장상, National Institute of Technology and Standards Award)  
+- **대회명:** 2025 IRC 제20회 국제로봇콘테스트 
+- **부문:** AI 자율주행 경진대회 (AI Autonomous Driving Competition)
+- **성과:** 🥈 2nd Prize (국가표준원장상)
 
 ---
 
