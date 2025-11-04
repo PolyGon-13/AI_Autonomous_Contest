@@ -1,4 +1,6 @@
-![로봇](img/robot.jpg)
+<p align="center">
+  <img src="img/robot.jpg" alt="로봇" width="50%"/>
+</p>
 
 ---
 
