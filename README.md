@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="img/robot.jpg" alt="로봇" width="50%"/>
+  <img src="img/robot.jpg" alt="로봇" width="80%"/>
 </p>
 
 ---
