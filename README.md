@@ -1,4 +1,4 @@
-<p align="center">
+<p align="left">
   <img src="img/robot.jpg" alt="로봇" width="80%"/>
 </p>
 
