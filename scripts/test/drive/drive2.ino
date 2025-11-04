@@ -1,4 +1,4 @@
-// 라인인식 + 벽 구간 + 장애물 인식
+// 라인인식 + 벽구간 + 장애물 인식
 
 #include <Arduino.h>
 #include <math.h>
@@ -34,7 +34,7 @@ float integral = 0.0f, deriv = 0.0f;
 float dt;                                         // 주기
 unsigned long lastTime = 0;
 float Ks = 0.1f;                                  // PID값 조향각에 따라 감소
-const float PID_LIMIT = 10.0f;                    // PID 최대 절대값 제한(PID값이 너무 커지거나 작아지는거 방지용)
+float PID_LIMIT;                                  // PID 최대 절대값 제한(PID값이 너무 커지거나 작아지는거 방지용)
 float candidate_integral;                         // 현재 미분값 구하기
 float candidate_PID;                              // 위에서 구한 미분값으로 PID값 구하기
 unsigned long now;                                // 현재 millis 저장할 변수
@@ -95,9 +95,9 @@ char lineBuf[129];                                // ASCII 출력 버퍼
 // - XSHUT = HIGH → 센서 활성화(부팅 시작)
 
 // XSHUT 핀(센서1, 센서2, 센서3) — 각 센서 보드의 XSHUT(또는 SHDN)과 연결
-const int XSHUT1 = 2; // 전방
-const int XSHUT2 = 3; // 좌측
-const int XSHUT3 = 4; // 우특
+const int XSHUT1 = 2; // 좌측
+const int XSHUT2 = 3; // 전방
+const int XSHUT3 = 4; // 우측
 
 // 우리가 부여할 새 I2C 주소(7-bit 주소 표기)
 // ※ VL53L0X 기본주소 0x29와 충돌하지 않도록 서로 다른 값 사용
@@ -281,11 +281,8 @@ void avoid() {
           straightStart = millis(); // 직진 시간 측정 재시작
         }
       }else {
+        state = AVOID_RETURN;
         // 직진 중: 라인 인식될 때까지
-        move_forward();
-        if (lineDetected) {
-          state = AVOID_RETURN;
-        }
       }
       break;
     }
@@ -312,7 +309,7 @@ void avoid() {
 
 // 벽 따라 주행 p제어 사용
 void wall(){ 
-  wall_error = m2.RangeMilliMeter - m3.RangeMilliMeter;
+  wall_error = m1.RangeMilliMeter - m3.RangeMilliMeter;
   wall_P = (wall_error * wall_Kp) * Ks;
 
   wall_steering_device = roundf(constrain(DEG_CENTER - wall_P, DEG_LEFT, DEG_RIGHT));
@@ -392,8 +389,6 @@ void Camera() {
   T_val = (vmin_val + vmax_val) / 2 - MARGIN;
   T_val = constrain(T_val, 0, 1023);
 }
-
-
 
 // =============================[ 라인 분석 ]==================================== 
 void analyze_Line() {
@@ -493,7 +488,7 @@ void PID_control() {
 // 주행
 void Drive() {
   // 전방 장애물 감지 시 회피 루틴 실행
-  if (m1.RangeMilliMeter < object_distance && state == BASIC) { // 회피 첫 시작
+  if (m2.RangeMilliMeter < object_distance && state == BASIC) { // 회피 첫 시작
     side = "avoid";
     state = AVOID_TURN;
     avoid();
@@ -505,23 +500,18 @@ void Drive() {
 
   if (state == BASIC || state == END) {
     if (lineDetected) { // 라인 검출 시
-      if (wall_work) {
-        wall_work = false;
-        count = 1;
-      }
       PID_forward(PID); // PID 제어로 주행
-    } else { // 라인 미검출 시
-      if ((m2.RangeMilliMeter < 500 || m3.RangeMilliMeter < 500) && count == 0) { // 좌우 장애물이 0.5m 이내에 있는 경우
-        wall_work = true;
-        wall(); // 벽 따라 주행
-        side = "wall";
-      } else { // 라인 미검출 & 장애물 없음
-        stop(); // 정지
-        side = "NO_LINE";
-      }
+    } else if ((m1.RangeMilliMeter < 500 || m3.RangeMilliMeter < 500) && count == 0) { // 좌우 장애물이 0.5m 이내에 있는 경우
+      wall_work = true;
+      wall(); // 벽 따라 주행
+      side = "wall";
+    } else { // 라인 미검출 & 장애물 없음
+      stop(); // 정지
+      side = "NO_LINE";
     }
   }
 }
+
 
 
 // =============================[ 카메라 각 픽셀 값 입력 ]================================
@@ -632,6 +622,9 @@ void setup() {
 
   lastTime = millis();
   prev_error = error;
+
+  //PID값 제한범위
+  PID_LIMIT = DEG_RIGHT - DEG_LEFT;
   
   // [ TOF 센서 ]
   // XSHUT 핀을 출력으로 사용하고, 일단 LOW로 내려서 모든 센서를 "리셋 상태"로 만듦
@@ -643,12 +636,12 @@ void setup() {
   digitalWrite(XSHUT1, LOW);
   digitalWrite(XSHUT2, LOW);
   digitalWrite(XSHUT3, LOW);
-  delay(50);                        // 리셋 유지
+  delay(30);                        // 리셋 유지
 
   // [주소 변경 단계]
   // 2) 센서1만 ON → 기본주소(0x29)로 부팅 → 부팅 직후에 새 주소로 변경
   digitalWrite(XSHUT1, HIGH);       // 센서1 활성화(부팅 시작)
-  delay(30);                        // 부팅 안정화 대기(수~수십 ms 권장)
+  delay(10);                        // 부팅 안정화 대기(수~수십 ms 권장)
 
   // begin(addr)는 해당 addr로 센서에 접속/초기화 시도
   // 여기서는 기본주소 0x29로 먼저 붙는다(부팅 직후 아직 주소 변경 전이므로)
@@ -662,7 +655,7 @@ void setup() {
 
   // 3) 센서2 ON → 기본주소(0x29)로 부팅 → 새 주소로 변경(센서1과 동일한 절차)
   digitalWrite(XSHUT2, HIGH);       // 센서2 활성화
-  delay(30);                        // 부팅 안정화 대기
+  delay(10);                        // 부팅 안정화 대기
 
   if (!lox2.begin(0x29)) {
     Serial.println(F("Sensor2 boot fail"));
@@ -672,7 +665,7 @@ void setup() {
 
   // 4) 센서3 ON → 기본주소(0x29)로 부팅 → 새 주소로 변경(센서1과 동일한 절차)
   digitalWrite(XSHUT3, HIGH);       // 센서3 활성화
-  delay(30);                        // 부팅 안정화 대기
+  delay(10);                        // 부팅 안정화 대기
 
   if (!lox3.begin(0x29)) {
     Serial.println(F("Sensor3 boot fail"));
